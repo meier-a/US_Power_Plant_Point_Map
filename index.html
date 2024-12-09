@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>U.S. Power Plants</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"/>
+    <style>
+        html, body, #map { 
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            background: #fff;
+            font-family: 'Titillium Web', sans-serif;
+        }
+
+        /* links*/
+        a {
+            color: #007bff;
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        /* title*/
+        h1 {
+            position: absolute;
+            left: 30px;
+            top: 20px;
+            padding: 5px 1%;
+            margin: 0;
+            background: rgba(255, 255, 255, 0.8);
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            color: black;
+            font-size: 1.5em;
+            z-index: 1000;
+            border-radius: 5px;
+        }
+
+        /* dropdown menue*/
+        #sourceSelect {
+            position: absolute;
+            top: 20px;
+            right: 180px;
+            z-index: 1000;
+            background: white;
+            padding: 2px;
+            width: auto;
+            max-width: 200px;
+        }
+
+        /* infobox on the right top corner*/
+        #infoBox {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border: 1px solid #ccc;
+            max-width: 250px;
+            max-height: 400px;
+            overflow-y: auto;
+            border-radius: 5px;
+        }
+
+
+        #infoBox h4 {
+            margin-top: 0;
+            margin-bottom: 0px;
+        }
+
+        #infoBox .total-plants {
+            margin-bottom: 15px; 
+        }
+
+        #infoBox .source-title {
+            margin-bottom: 0px;
+            font-weight: bold;
+        }
+
+        /* controle element*/
+        .custom-zoom-control {
+            background-color: white;
+            padding: 2px;
+            border: 2px solid rgba(0,0,0,0.2);
+            border-radius: 4px;
+            bottom: 20px;
+        }
+        .custom-zoom-control button {
+            width: 30px; 
+            height: 30px;
+            font-size: 18px; 
+            font-weight: bold; 
+            display: block; 
+            margin-bottom: 5px; 
+        }
+
+        /* welcome box/ popup info box*/
+        .welcome-popup {
+            position: fixed; 
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%); 
+            background: rgba(255, 255, 255, 0.8);
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.3);
+            z-index: 2000;
+            max-width: 80%;
+            max-height: 100%;
+            overflow-y: auto;
+            margin-top: 0px;
+        }
+
+        .welcome-popup h2{
+            margin-top: 0px;
+        }
+
+        .welcome-popup button {
+            display: block;
+            margin-top: 10px;
+        }
+
+
+   </style>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <link href="https://fonts.googleapis.com/css?family=Titillium+Web" rel="stylesheet">
+    </style>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+</head>
+<body>
+    <div id="map"></div> <!-- Map container -->
+    <h1>U.S. Power Plants</h1> <!-- Title of the map -->
+    <select id="sourceSelect"> <!-- Dropdown menu for filtering power sources -->
+        <option value="all">All Sources</option>
+    </select>
+    <div id="infoBox">Hover over a State</div> <!-- Info box with default message -->
+
+    <!--welcome popup content-->
+    <div id="welcomePopup" class="welcome-popup">
+        <h2>Welcome to U.S. Power Plants Map</h2>
+        <p>
+            This interactive map shows the distribution of power plants and their energy sources in the United States. Each dot represents a power plant, with the colour indicating the primary energy source. This visualisation complements the New York Times article             <a href="https://www.nytimes.com/2024/11/12/climate/fossil-fuel-emissions-2024-record.html" target="_blank">
+                "Fossil Fuels Are Still Winning: Global Emissions Head for a Record"
+            </a> (November 12, 2024) and provides an overview of the US energy landscape.</p>
+        <p>
+            You can explore the map in the following ways: Use the drop-down menu to filter power plants by energy source. Hover over a state to get detailed information on the number and type of power plants. Click on individual power plant points to view specific information such as the name, primary energy source and the maximum amount of electricity a power plant can generate at full capacity. Use the zoom functions to take a closer look at specific regions.        </p>
+        
+        <button onclick="closeWelcomePopup()">Close</button>
+    </div>
+
+    <script>
+        // Initialize the map
+        var mymap = L.map('map', {
+           center: [40, -98], // Center coordinates for the map
+           zoom: 4, // Initial zoom level
+           zoomControl: false // Disable default zoom control
+       });
+
+       // Add dark base layer to the map
+       var CartoDB_DarkMatter = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+           attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a> <br>' +
+                        'Power Plant Data: <a href="https://atlas.eia.gov/datasets/eia::power-plants/explore?location=29.746965%2C61.504000%2C2.98">U.S. Energy Information Administration</a> | ' +
+                        'State Boundary: <a href="https://www.census.gov/geographies/mapping-files/time-series/geo/carto-boundary-file.html">U.S. Census Bureau</a>',
+           subdomains: 'abcd'
+       }).addTo(mymap);
+
+        // Add scale bar 
+        L.control.scale({position:'bottomleft', imperial:false}).addTo(mymap); 
+
+       // Custom zoom control
+       var customZoomControl = L.control({position:'bottomleft'});
+       customZoomControl.onAdd = function (map) {
+           var container = L.DomUtil.create('div', 'custom-zoom-control');
+           var zoomInButton = L.DomUtil.create('button', '', container);
+           zoomInButton.innerHTML = '+';
+           L.DomEvent.on(zoomInButton, 'click', function () {
+               map.zoomIn(); // Zoom in on click
+           });
+           var resetButton = L.DomUtil.create('button', '', container);
+           resetButton.innerHTML = '⟲';
+           L.DomEvent.on(resetButton, 'click', function () {
+               map.setView([40, -98], 4); // Reset view on click
+           });
+           var zoomOutButton = L.DomUtil.create('button', '', container);
+           zoomOutButton.innerHTML = '-';
+           L.DomEvent.on(zoomOutButton, 'click', function () {
+               map.zoomOut(); // Zoom out on click
+           });
+           var infoButton = L.DomUtil.create('button', '', container);
+           infoButton.innerHTML = 'i';
+           L.DomEvent.on(infoButton, 'click', function () {
+               openWelcomePopup(); // Open welcome popup on click
+           });
+           return container; // Return custom control container
+       };
+       customZoomControl.addTo(mymap); // Add custom control to map
+
+       var powerPlantsLayer = L.layerGroup(); // Layer group for power plants
+       var statesLayer; // Variable to hold state boundaries
+
+       // Color mapping for different energy sources
+       var sourceColors = {
+           'solar': 'yellow',
+           'hydroelectric': 'blue',
+           'wind': 'lightblue',
+           'natural gas': 'brown',
+           'nuclear': 'darkred',
+           'biomass': 'green',
+           'petroleum': 'violet',
+           'geothermal': 'orange',
+           'coal': 'pink',
+           'pumped storage': 'lightgreen',
+           'other': 'gray',
+           'batteries': 'red'
+       };
+
+       var powerPlantsByState = {}; // Object to store power plant counts by state
+       var powerPlantsByStateAndSource = {}; // Object to store breakdown by source
+
+       // Fetch and process power plant data from GeoJSON file
+       fetch('assets/data.geojson')
+          .then(response => response.json())
+          .then(data => {
+              var sources = new Set(); // Set to hold unique energy sources
+
+              // Loop through each feature in the GeoJSON data
+              data.features.forEach(feature => {
+                  sources.add(feature.properties.PrimSource); // Add source to set
+                  var state = feature.properties.State; // Get state from feature
+                  var source = feature.properties.PrimSource;
+
+                  // Initialize count for each state if not already done
+                  if (!powerPlantsByState[state]) { 
+                      powerPlantsByState[state] = 0; 
+                      powerPlantsByStateAndSource[state] = {}; 
+                  }
+                  powerPlantsByState[state]++; // Increment count for state
+
+                  // Initialize source count for the state if not already done
+                  if (!powerPlantsByStateAndSource[state][source]) { 
+                      powerPlantsByStateAndSource[state][source] = 0; 
+                  }
+                  powerPlantsByStateAndSource[state][source]++; // Increment count for source in state
+              });
+
+              // Populate the dropdown menu with unique energy sources
+              var sourceSelect = document.getElementById('sourceSelect'); 
+              sources.forEach(source => { 
+                  var option = document.createElement('option'); 
+                  option.value = source; 
+                  option.text = source; 
+                  sourceSelect.appendChild(option); 
+              });
+
+              // Function to update markers based on selected energy source
+              function updateMarkers(selectedSource) { 
+                powerPlantsLayer.clearLayers();
+                data.features.forEach(feature => { 
+                    if (selectedSource === 'all' || feature.properties.PrimSource === selectedSource) { 
+                        var marker = L.circleMarker([feature.geometry.coordinates[1], feature.geometry.coordinates[0]], { 
+                            radius: 5,
+                            fillColor: selectedSource === 'all' ? '#808080' : sourceColors[feature.properties.PrimSource.toLowerCase()], 
+                            color: '#000', 
+                            weight: 1,
+                            opacity: 1,
+                            fillOpacity: 0.8 
+                        });
+                        marker.bindPopup(`<b>${feature.properties.Plant_Name}</b><br>Primary Source: ${feature.properties.PrimSource}<br>Produces: ${feature.properties.Total_MW}MW`);
+                        powerPlantsLayer.addLayer(marker);
+                    } 
+                }); 
+            }
+
+
+              updateMarkers('all'); // Initially show all markers on the map
+              mymap.addLayer(powerPlantsLayer); // Add the power plants layer to the map
+
+              // Event listener for dropdown selection changes
+              sourceSelect.addEventListener('change', function() { 
+                  updateMarkers(this.value); // Update markers based on selected energy source
+              }); 
+          });
+
+      // Fetch and process state boundary data from GeoJSON file
+      fetch('assets/us-state-boundaries.geojson') 
+         .then(response => response.json()) 
+         .then(data => { 
+             statesLayer = L.geoJSON(data, { 
+                 style:{ 
+                     fillColor:'transparent', 
+                     color:'#808080', 
+                     weight :1 
+                 }, 
+                 onEachFeature:function(feature, layer) { 
+                     layer.on({ 
+                         mouseover : highlightFeature, // Highlight state on hover
+                         mouseout : resetHighlight,   // Reset highlight when not hovering
+                         click : zoomToFeature         // Zoom in when clicked
+                     }); 
+                 } 
+             }).addTo(mymap); // Add state boundaries to the map
+         });
+
+      // Function to highlight a state when hovered over
+      function highlightFeature(e) { 
+          var layer = e.target;  
+          layer.setStyle({  
+              weight :3,
+              color:'#666',
+              dashArray:'',
+              fillOpacity :0.7  
+          });  
+          updateInfoBox(layer.feature.properties); // Update info box with state info on hover
+      }
+
+      // Function to reset highlight when not hovering over a state
+      function resetHighlight(e) {  
+          statesLayer.resetStyle(e.target);  
+          updateInfoBox({}); // Call with an empty object to reset to default message
+      }
+
+      // Function to zoom into the clicked state feature
+      function zoomToFeature(e) {  
+          mymap.fitBounds(e.target.getBounds());  
+      }
+
+      // Function to update the information box displayed on the map
+      function updateInfoBox(props) {  
+          var infoBox = document.getElementById('infoBox');  
+
+          if (props.name) {  
+              var stateName = props.name;  
+              var powerPlantCount = powerPlantsByState[stateName] || 0;  
+              var sourceBreakdown = powerPlantsByStateAndSource[stateName] || {};
+
+              var infoContent = `<h4>${stateName}</h4>`;  
+                infoContent += `<div class="total-plants">Total Plants: ${powerPlantCount}</div>`;
+                infoContent += `<div class="source-title">By Source:</div>`;
+
+              for (let source in sourceBreakdown) {  
+                  infoContent += `${source}: ${sourceBreakdown[source]}<br>`;  
+              }  
+
+              infoBox.innerHTML = infoContent;  
+          } else {
+              infoBox.innerHTML = "Hover over a State"; // Default message when mouse is not over a State.
+          }
+
+      }
+
+      // Function to close the welcome popup window.
+      function closeWelcomePopup() {  
+          document.getElementById('welcomePopup').style.display='none';  
+      }
+
+      // Function to open the welcome popup window.
+      function openWelcomePopup() {  
+          document.getElementById('welcomePopup').style.display='block';  
+      }
+
+
+   </script>
+</body>
+</html>
